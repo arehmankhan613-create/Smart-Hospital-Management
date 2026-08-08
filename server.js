@@ -119,4 +119,4 @@ http://localhost:${PORT}/api/health
 const {
     getCurrentUser
 } = require("../controllers/user");
-const doctorRoutes = require("./routes/doctorRoutes");
+const doctorRoutes = require("./routes/doctorRoutes");const patientRoutes = require("./routes/patientRoutes");
