@@ -112,4 +112,4 @@ http://localhost:${PORT}/api/health
 =========================================
     `);
 
-});
+});const authRoutes = require("./routes/authRoutes");
