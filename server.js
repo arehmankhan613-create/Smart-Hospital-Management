@@ -41,7 +41,10 @@ app.use(
     "/api/auth",
     authRoutes
 );
-
+app.use(
+    "/api/doctors",
+    doctorRoutes
+);
 
 // ==========================================
 // API Health Check
@@ -116,3 +119,4 @@ http://localhost:${PORT}/api/health
 const {
     getCurrentUser
 } = require("../controllers/user");
+const doctorRoutes = require("./routes/doctorRoutes");
