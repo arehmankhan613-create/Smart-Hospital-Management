@@ -61,7 +61,10 @@ app.get("/api/health", (req, res) => {
         service: "MediCore Backend"
     });
 
-});
+});app.use(
+    "/api/appointments",
+    appointmentRoutes
+);
 
 
 // ==========================================
@@ -123,3 +126,4 @@ const {
     getCurrentUser
 } = require("../controllers/user");
 const doctorRoutes = require("./routes/doctorRoutes");const patientRoutes = require("./routes/patientRoutes");
+const appointmentRoutes = require("./routes/appointmentRoutes");
