@@ -113,3 +113,6 @@ http://localhost:${PORT}/api/health
     `);
 
 });const authRoutes = require("./routes/authRoutes");const userRoutes = require("./routes/userRoutes");
+const {
+    getCurrentUser
+} = require("../controllers/user");
