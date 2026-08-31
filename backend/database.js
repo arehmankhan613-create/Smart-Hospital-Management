@@ -1,32 +1,40 @@
 // ==========================================
 // MediCore
-// Database Connection
+// PostgreSQL Database Connection
 // ==========================================
 
-const mysql = require("mysql2/promise");
+const { Pool } = require("pg");
 require("dotenv").config();
 
-const pool = mysql.createPool({
+const pool = new Pool({
     host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 5432,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT || 3306,
+    ssl: process.env.DB_SSL === "true"
+        ? { rejectUnauthorized: false }
+        : false
+});
 
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+pool.on("connect", () => {
+    console.log("✅ PostgreSQL Database Connected");
+});
+
+pool.on("error", (error) => {
+    console.error("❌ PostgreSQL Pool Error:", error.message);
 });
 
 async function testDatabaseConnection() {
 
     try {
 
-        const connection = await pool.getConnection();
+        const result = await pool.query("SELECT NOW()");
 
-        console.log("✅ MySQL Database Connected Successfully");
-
-        connection.release();
+        console.log(
+            "✅ Database Connection Successful:",
+            result.rows[0]
+        );
 
     } catch (error) {
 
