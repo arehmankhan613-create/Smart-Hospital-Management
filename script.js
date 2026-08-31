@@ -159,9 +159,7 @@ if (manageDoctorsBtn) {
 
             console.log("Doctors:", result.data);
 
-            showNotification(
-                `${result.count} doctors loaded successfully.`
-            );
+openDoctorsManager(result.data);
 
         } catch (error) {
 
@@ -664,4 +662,313 @@ document.addEventListener(
         );
 
     }
-);
+);// ==========================================
+// DOCTOR MANAGEMENT MODAL
+// ==========================================
+
+function openDoctorsManager(doctors = []) {
+
+    const existing =
+        document.querySelector(".doctors-modal");
+
+    if (existing) return;
+
+
+    const modal =
+        document.createElement("div");
+
+    modal.className =
+        "doctors-modal";
+
+
+    let doctorsHTML = "";
+
+
+    if (doctors.length === 0) {
+
+        doctorsHTML = `
+            <div class="empty-state">
+
+                <i class="fa-solid fa-user-doctor"></i>
+
+                <h3>No Doctors Found</h3>
+
+                <p>
+                    Add your first doctor to the system.
+                </p>
+
+            </div>
+        `;
+
+    } else {
+
+        doctors.forEach(doctor => {
+
+            doctorsHTML += `
+
+                <div class="doctor-manage-card">
+
+                    <div class="doctor-info">
+
+                        <div class="doctor-avatar">
+
+                            ${doctor.name
+                                ? doctor.name
+                                    .split(" ")
+                                    .map(word => word[0])
+                                    .join("")
+                                    .substring(0, 2)
+                                : "DR"
+                            }
+
+                        </div>
+
+                        <div>
+
+                            <h3>
+                                ${doctor.name}
+                            </h3>
+
+                            <p>
+                                ${doctor.specialization}
+                            </p>
+
+                            <span>
+                                ${doctor.department || "No Department"}
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="doctor-actions">
+
+                        <button
+                            class="edit-doctor-btn"
+                            data-id="${doctor.id}"
+                        >
+
+                            <i class="fa-solid fa-pen"></i>
+
+                        </button>
+
+
+                        <button
+                            class="delete-doctor-btn"
+                            data-id="${doctor.id}"
+                        >
+
+                            <i class="fa-solid fa-trash"></i>
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            `;
+
+        });
+
+    }
+
+
+    modal.innerHTML = `
+
+        <div class="doctors-modal-box">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <span>
+                        MEDICAL STAFF
+                    </span>
+
+                    <h2>
+                        Manage Doctors
+                    </h2>
+
+                </div>
+
+
+                <button class="close-doctors-modal">
+
+                    <i class="fa-solid fa-xmark"></i>
+
+                </button>
+
+            </div>
+
+
+            <div class="doctors-toolbar">
+
+                <button
+                    class="primary-button"
+                    id="addDoctorBtn"
+                >
+
+                    <i class="fa-solid fa-user-plus"></i>
+
+                    Add Doctor
+
+                </button>
+
+            </div>
+
+
+            <div class="doctors-list">
+
+                ${doctorsHTML}
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    document.body.appendChild(modal);
+
+
+    // ======================================
+    // CLOSE MODAL
+    // ======================================
+
+    modal.querySelector(
+        ".close-doctors-modal"
+    ).addEventListener(
+        "click",
+        () => {
+
+            modal.remove();
+
+        }
+    );
+
+
+    // ======================================
+    // ADD DOCTOR
+    // ======================================
+
+    const addDoctorBtn =
+        modal.querySelector("#addDoctorBtn");
+
+    if (addDoctorBtn) {
+
+        addDoctorBtn.addEventListener(
+            "click",
+            () => {
+
+                showNotification(
+                    "Add Doctor form will open here."
+                );
+
+            }
+        );
+
+    }
+
+
+    // ======================================
+    // EDIT DOCTOR
+    // ======================================
+
+    modal.querySelectorAll(
+        ".edit-doctor-btn"
+    ).forEach(button => {
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                const doctorId =
+                    button.dataset.id;
+
+                showNotification(
+                    `Edit Doctor ID: ${doctorId}`
+                );
+
+            }
+        );
+
+    });
+
+
+    // ======================================
+    // DELETE DOCTOR
+    // ======================================
+
+    modal.querySelectorAll(
+        ".delete-doctor-btn"
+    ).forEach(button => {
+
+        button.addEventListener(
+            "click",
+            async () => {
+
+                const doctorId =
+                    button.dataset.id;
+
+
+                const confirmDelete =
+                    confirm(
+                        "Are you sure you want to delete this doctor?"
+                    );
+
+
+                if (!confirmDelete) return;
+
+
+                try {
+
+                    const response =
+                        await fetch(
+                            `http://localhost:5000/api/doctors/${doctorId}`,
+                            {
+                                method: "DELETE"
+                            }
+                        );
+
+
+                    const result =
+                        await response.json();
+
+
+                    if (result.success) {
+
+                        showNotification(
+                            "Doctor deleted successfully."
+                        );
+
+
+                        button
+                            .closest(".doctor-manage-card")
+                            .remove();
+
+                    } else {
+
+                        showNotification(
+                            result.message ||
+                            "Failed to delete doctor."
+                        );
+
+                    }
+
+                } catch (error) {
+
+                    console.error(error);
+
+                    showNotification(
+                        "Unable to connect to backend."
+                    );
+
+                }
+
+            }
+        );
+
+    });
+
+}
