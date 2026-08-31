@@ -1,6 +1,7 @@
 // ==========================================
 // MediCore
 // Medical Records API Routes
+// PostgreSQL
 // ==========================================
 
 const express = require("express");
@@ -8,28 +9,52 @@ const router = express.Router();
 const db = require("../database");
 
 
+// ==========================================
 // GET ALL MEDICAL RECORDS
+// ==========================================
+
 router.get("/", async (req, res) => {
 
     try {
 
-        const [records] = await db.query(`
+        const result = await db.query(`
             SELECT
-                mr.*,
-                p.name AS patient_name,
-                d.name AS doctor_name
+                mr.id,
+                mr.patient_id,
+                pu.name AS patient_name,
+
+                mr.doctor_id,
+                du.name AS doctor_name,
+
+                mr.appointment_id,
+                mr.diagnosis,
+                mr.symptoms,
+                mr.treatment,
+                mr.notes,
+                mr.created_at
+
             FROM medical_records mr
-            LEFT JOIN patients p
+
+            INNER JOIN patients p
                 ON mr.patient_id = p.id
-            LEFT JOIN doctors d
+
+            INNER JOIN users pu
+                ON p.user_id = pu.id
+
+            INNER JOIN doctors d
                 ON mr.doctor_id = d.id
-            ORDER BY mr.id DESC
+
+            INNER JOIN users du
+                ON d.user_id = du.id
+
+            ORDER BY mr.created_at DESC
         `);
+
 
         res.json({
             success: true,
-            count: records.length,
-            data: records
+            count: result.rows.length,
+            data: result.rows
         });
 
     } catch (error) {
@@ -46,26 +71,49 @@ router.get("/", async (req, res) => {
 });
 
 
+// ==========================================
 // GET MEDICAL RECORD BY ID
+// ==========================================
+
 router.get("/:id", async (req, res) => {
 
     try {
 
-        const [records] = await db.query(`
+        const result = await db.query(`
             SELECT
-                mr.*,
-                p.name AS patient_name,
-                d.name AS doctor_name
+                mr.id,
+                mr.patient_id,
+                pu.name AS patient_name,
+
+                mr.doctor_id,
+                du.name AS doctor_name,
+
+                mr.appointment_id,
+                mr.diagnosis,
+                mr.symptoms,
+                mr.treatment,
+                mr.notes,
+                mr.created_at
+
             FROM medical_records mr
-            LEFT JOIN patients p
+
+            INNER JOIN patients p
                 ON mr.patient_id = p.id
-            LEFT JOIN doctors d
+
+            INNER JOIN users pu
+                ON p.user_id = pu.id
+
+            INNER JOIN doctors d
                 ON mr.doctor_id = d.id
-            WHERE mr.id = ?
+
+            INNER JOIN users du
+                ON d.user_id = du.id
+
+            WHERE mr.id = $1
         `, [req.params.id]);
 
 
-        if (records.length === 0) {
+        if (result.rows.length === 0) {
 
             return res.status(404).json({
                 success: false,
@@ -77,7 +125,7 @@ router.get("/:id", async (req, res) => {
 
         res.json({
             success: true,
-            data: records[0]
+            data: result.rows[0]
         });
 
     } catch (error) {
@@ -94,7 +142,10 @@ router.get("/:id", async (req, res) => {
 });
 
 
+// ==========================================
 // CREATE MEDICAL RECORD
+// ==========================================
+
 router.post("/", async (req, res) => {
 
     try {
@@ -102,14 +153,19 @@ router.post("/", async (req, res) => {
         const {
             patientId,
             doctorId,
+            appointmentId,
             diagnosis,
             symptoms,
-            prescription,
+            treatment,
             notes
         } = req.body;
 
 
-        if (!patientId || !doctorId || !diagnosis) {
+        if (
+            !patientId ||
+            !doctorId ||
+            !diagnosis
+        ) {
 
             return res.status(400).json({
                 success: false,
@@ -120,24 +176,40 @@ router.post("/", async (req, res) => {
         }
 
 
-        const [result] = await db.query(`
+        const result = await db.query(`
             INSERT INTO medical_records
             (
                 patient_id,
                 doctor_id,
+                appointment_id,
                 diagnosis,
                 symptoms,
-                prescription,
+                treatment,
                 notes
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7
+            )
+
+            RETURNING id
         `, [
+
             patientId,
             doctorId,
+            appointmentId || null,
             diagnosis,
             symptoms || null,
-            prescription || null,
+            treatment || null,
             notes || null
+
         ]);
 
 
@@ -149,7 +221,7 @@ router.post("/", async (req, res) => {
                 "Medical record created successfully",
 
             recordId:
-                result.insertId
+                result.rows[0].id
 
         });
 
@@ -171,7 +243,10 @@ router.post("/", async (req, res) => {
 });
 
 
+// ==========================================
 // UPDATE MEDICAL RECORD
+// ==========================================
+
 router.put("/:id", async (req, res) => {
 
     try {
@@ -179,41 +254,53 @@ router.put("/:id", async (req, res) => {
         const {
             patientId,
             doctorId,
+            appointmentId,
             diagnosis,
             symptoms,
-            prescription,
+            treatment,
             notes
         } = req.body;
 
 
-        const [result] = await db.query(`
+        const result = await db.query(`
             UPDATE medical_records
 
             SET
-                patient_id = ?,
-                doctor_id = ?,
-                diagnosis = ?,
-                symptoms = ?,
-                prescription = ?,
-                notes = ?
+                patient_id = $1,
+                doctor_id = $2,
+                appointment_id = $3,
+                diagnosis = $4,
+                symptoms = $5,
+                treatment = $6,
+                notes = $7
 
-            WHERE id = ?
+            WHERE id = $8
+
+            RETURNING id
+
         `, [
+
             patientId,
             doctorId,
+            appointmentId || null,
             diagnosis,
             symptoms || null,
-            prescription || null,
+            treatment || null,
             notes || null,
             req.params.id
+
         ]);
 
 
-        if (result.affectedRows === 0) {
+        if (result.rows.length === 0) {
 
             return res.status(404).json({
+
                 success: false,
-                message: "Medical record not found"
+
+                message:
+                    "Medical record not found"
+
             });
 
         }
@@ -246,22 +333,32 @@ router.put("/:id", async (req, res) => {
 });
 
 
+// ==========================================
 // DELETE MEDICAL RECORD
+// ==========================================
+
 router.delete("/:id", async (req, res) => {
 
     try {
 
-        const [result] = await db.query(
-            "DELETE FROM medical_records WHERE id = ?",
-            [req.params.id]
-        );
+        const result = await db.query(`
+            DELETE FROM medical_records
+
+            WHERE id = $1
+
+            RETURNING id
+        `, [req.params.id]);
 
 
-        if (result.affectedRows === 0) {
+        if (result.rows.length === 0) {
 
             return res.status(404).json({
+
                 success: false,
-                message: "Medical record not found"
+
+                message:
+                    "Medical record not found"
+
             });
 
         }
