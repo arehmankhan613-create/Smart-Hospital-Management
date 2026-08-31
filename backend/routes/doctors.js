@@ -1,6 +1,7 @@
 // ==========================================
 // MediCore
 // Doctors API Routes
+// PostgreSQL
 // ==========================================
 
 const express = require("express");
@@ -16,16 +17,36 @@ router.get("/", async (req, res) => {
 
     try {
 
-        const [doctors] = await db.query(`
-            SELECT *
-            FROM doctors
-            ORDER BY id DESC
+        const result = await db.query(`
+            SELECT
+                d.id,
+                u.name,
+                u.email,
+                u.phone,
+                d.specialization,
+                d.license_number,
+                d.qualification,
+                d.experience_years,
+                d.consultation_fee,
+                d.bio,
+                dep.name AS department,
+                d.created_at
+
+            FROM doctors d
+
+            INNER JOIN users u
+                ON d.user_id = u.id
+
+            INNER JOIN departments dep
+                ON d.department_id = dep.id
+
+            ORDER BY d.id DESC
         `);
 
         res.json({
             success: true,
-            count: doctors.length,
-            data: doctors
+            count: result.rows.length,
+            data: result.rows
         });
 
     } catch (error) {
@@ -50,12 +71,34 @@ router.get("/:id", async (req, res) => {
 
     try {
 
-        const [doctors] = await db.query(
-            "SELECT * FROM doctors WHERE id = ?",
-            [req.params.id]
-        );
+        const result = await db.query(`
+            SELECT
+                d.id,
+                u.name,
+                u.email,
+                u.phone,
+                d.specialization,
+                d.license_number,
+                d.qualification,
+                d.experience_years,
+                d.consultation_fee,
+                d.bio,
+                dep.name AS department,
+                d.created_at
 
-        if (doctors.length === 0) {
+            FROM doctors d
+
+            INNER JOIN users u
+                ON d.user_id = u.id
+
+            INNER JOIN departments dep
+                ON d.department_id = dep.id
+
+            WHERE d.id = $1
+        `, [req.params.id]);
+
+
+        if (result.rows.length === 0) {
 
             return res.status(404).json({
                 success: false,
@@ -64,9 +107,10 @@ router.get("/:id", async (req, res) => {
 
         }
 
+
         res.json({
             success: true,
-            data: doctors[0]
+            data: result.rows[0]
         });
 
     } catch (error) {
@@ -89,61 +133,120 @@ router.get("/:id", async (req, res) => {
 
 router.post("/", async (req, res) => {
 
+    const client = await db.connect();
+
     try {
 
         const {
             name,
             email,
+            passwordHash,
             phone,
+            departmentId,
             specialization,
-            department,
-            experience,
-            licenseNumber
+            licenseNumber,
+            qualification,
+            experienceYears,
+            consultationFee,
+            bio
         } = req.body;
 
 
         if (
             !name ||
             !email ||
-            !phone ||
-            !specialization
+            !passwordHash ||
+            !departmentId ||
+            !specialization ||
+            !licenseNumber
         ) {
 
             return res.status(400).json({
                 success: false,
                 message:
-                    "Name, email, phone and specialization are required"
+                    "Name, email, passwordHash, departmentId, specialization and licenseNumber are required"
             });
 
         }
 
 
-        const [result] = await db.query(`
+        await client.query("BEGIN");
 
-            INSERT INTO doctors
+
+        // Create user
+
+        const userResult = await client.query(`
+            INSERT INTO users
             (
                 name,
                 email,
-                phone,
-                specialization,
-                department,
-                experience,
-                license_number
+                password_hash,
+                role,
+                phone
             )
 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                'DOCTOR',
+                $4
+            )
 
+            RETURNING id
         `, [
-
             name,
             email,
-            phone,
-            specialization,
-            department || null,
-            experience || 0,
-            licenseNumber || null
-
+            passwordHash,
+            phone || null
         ]);
+
+
+        const userId = userResult.rows[0].id;
+
+
+        // Create doctor
+
+        const doctorResult = await client.query(`
+            INSERT INTO doctors
+            (
+                user_id,
+                department_id,
+                specialization,
+                license_number,
+                qualification,
+                experience_years,
+                consultation_fee,
+                bio
+            )
+
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8
+            )
+
+            RETURNING id
+        `, [
+            userId,
+            departmentId,
+            specialization,
+            licenseNumber,
+            qualification || null,
+            experienceYears || 0,
+            consultationFee || 0,
+            bio || null
+        ]);
+
+
+        await client.query("COMMIT");
 
 
         res.status(201).json({
@@ -154,13 +257,30 @@ router.post("/", async (req, res) => {
                 "Doctor added successfully",
 
             doctorId:
-                result.insertId
+                doctorResult.rows[0].id
 
         });
 
     } catch (error) {
 
+        await client.query("ROLLBACK");
+
         console.error(error);
+
+
+        if (error.code === "23505") {
+
+            return res.status(409).json({
+
+                success: false,
+
+                message:
+                    "Email or license number already exists"
+
+            });
+
+        }
+
 
         res.status(500).json({
 
@@ -170,6 +290,10 @@ router.post("/", async (req, res) => {
                 "Failed to add doctor"
 
         });
+
+    } finally {
+
+        client.release();
 
     }
 
@@ -182,61 +306,94 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
 
+    const client = await db.connect();
+
     try {
 
         const {
             name,
             email,
             phone,
+            departmentId,
             specialization,
-            department,
-            experience,
-            licenseNumber
+            licenseNumber,
+            qualification,
+            experienceYears,
+            consultationFee,
+            bio
         } = req.body;
 
 
-        const [result] = await db.query(`
-
-            UPDATE doctors
-
-            SET
-
-                name = ?,
-                email = ?,
-                phone = ?,
-                specialization = ?,
-                department = ?,
-                experience = ?,
-                license_number = ?
-
-            WHERE id = ?
-
-        `, [
-
-            name,
-            email,
-            phone,
-            specialization,
-            department || null,
-            experience || 0,
-            licenseNumber || null,
-            req.params.id
-
-        ]);
+        await client.query("BEGIN");
 
 
-        if (result.affectedRows === 0) {
+        const doctorResult = await client.query(`
+            SELECT user_id
+            FROM doctors
+            WHERE id = $1
+        `, [req.params.id]);
+
+
+        if (doctorResult.rows.length === 0) {
+
+            await client.query("ROLLBACK");
 
             return res.status(404).json({
-
                 success: false,
-
-                message:
-                    "Doctor not found"
-
+                message: "Doctor not found"
             });
 
         }
+
+
+        const userId =
+            doctorResult.rows[0].user_id;
+
+
+        await client.query(`
+            UPDATE users
+
+            SET
+                name = $1,
+                email = $2,
+                phone = $3,
+                updated_at = CURRENT_TIMESTAMP
+
+            WHERE id = $4
+        `, [
+            name,
+            email,
+            phone || null,
+            userId
+        ]);
+
+
+        await client.query(`
+            UPDATE doctors
+
+            SET
+                department_id = $1,
+                specialization = $2,
+                license_number = $3,
+                qualification = $4,
+                experience_years = $5,
+                consultation_fee = $6,
+                bio = $7
+
+            WHERE id = $8
+        `, [
+            departmentId,
+            specialization,
+            licenseNumber,
+            qualification || null,
+            experienceYears || 0,
+            consultationFee || 0,
+            bio || null,
+            req.params.id
+        ]);
+
+
+        await client.query("COMMIT");
 
 
         res.json({
@@ -250,6 +407,8 @@ router.put("/:id", async (req, res) => {
 
     } catch (error) {
 
+        await client.query("ROLLBACK");
+
         console.error(error);
 
         res.status(500).json({
@@ -260,6 +419,10 @@ router.put("/:id", async (req, res) => {
                 "Failed to update doctor"
 
         });
+
+    } finally {
+
+        client.release();
 
     }
 
@@ -274,13 +437,14 @@ router.delete("/:id", async (req, res) => {
 
     try {
 
-        const [result] = await db.query(
-            "DELETE FROM doctors WHERE id = ?",
-            [req.params.id]
-        );
+        const result = await db.query(`
+            DELETE FROM doctors
+            WHERE id = $1
+            RETURNING id
+        `, [req.params.id]);
 
 
-        if (result.affectedRows === 0) {
+        if (result.rows.length === 0) {
 
             return res.status(404).json({
 
