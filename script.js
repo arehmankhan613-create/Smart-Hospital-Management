@@ -128,7 +128,54 @@ viewButtons.forEach(button => {
 
     });
 
-});
+});// ==========================================
+// MANAGE DOCTORS
+// ==========================================
+
+const manageDoctorsBtn =
+    document.getElementById("manageDoctorsBtn");
+
+if (manageDoctorsBtn) {
+
+    manageDoctorsBtn.addEventListener("click", async () => {
+
+        try {
+
+            showNotification("Loading doctors...");
+
+            const response =
+                await fetch("http://localhost:5000/api/doctors");
+
+            const result =
+                await response.json();
+
+            if (!result.success) {
+
+                showNotification("Failed to load doctors.");
+
+                return;
+
+            }
+
+            console.log("Doctors:", result.data);
+
+            showNotification(
+                `${result.count} doctors loaded successfully.`
+            );
+
+        } catch (error) {
+
+            console.error("Doctor API Error:", error);
+
+            showNotification(
+                "Unable to connect to doctor backend."
+            );
+
+        }
+
+    });
+
+}
 
 
 // ==========================================
